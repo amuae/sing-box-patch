@@ -1,0 +1,43 @@
+{
+  "outbounds": [
+    {
+      "tag": "backup-hk-01",
+      "type": "shadowsocks",
+      "server": "hk1.backup.com",
+      "server_port": 8388,
+      "method": "aes-256-gcm",
+      "password": "backup-password-1"
+    },
+    {
+      "tag": "backup-us-01", 
+      "type": "vmess",
+      "server": "us1.backup.com",
+      "server_port": 443,
+      "uuid": "12345678-1234-1234-1234-123456789abc",
+      "security": "auto",
+      "alter_id": 0,
+      "transport": {
+        "type": "ws",
+        "path": "/vmess",
+        "headers": {
+          "Host": "us1.backup.com"
+        }
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "us1.backup.com"
+      }
+    },
+    {
+      "tag": "backup-jp-01",
+      "type": "trojan",
+      "server": "jp1.backup.com", 
+      "server_port": 443,
+      "password": "trojan-password",
+      "tls": {
+        "enabled": true,
+        "server_name": "jp1.backup.com"
+      }
+    }
+  ]
+}

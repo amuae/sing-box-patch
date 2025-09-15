@@ -1,0 +1,153 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "providers": [
+    {
+      "tag": "机场订阅",
+      "type": "remote",
+      "remote_url": "https://example.com/subscription?token=your-token",
+      "download_interval": "6h",
+      "download_ua": "clash.meta",
+      "includes": [
+        "🇭🇰|香港|HK|Hong Kong",
+        "🇺🇸|美国|US|United States", 
+        "🇯🇵|日本|JP|Japan"
+      ],
+      "excludes": [
+        "过期|到期|Expire",
+        "官网|群组|Website",
+        "测试|Test.*",
+        "x0\\.|x0\\d"
+      ],
+      "health_check": {
+        "enable": true,
+        "url": "https://www.gstatic.com/generate_204",
+        "interval": "10m",
+        "timeout": "5s"
+      }
+    },
+    {
+      "tag": "本地备用",
+      "type": "local",
+      "path": "./backup-nodes.json",
+      "health_check": {
+        "enable": true,
+        "interval": "15m"
+      }
+    },
+    {
+      "tag": "直连节点",
+      "type": "inline",
+      "outbounds": [
+        {
+          "tag": "direct-hk",
+          "type": "shadowsocks",
+          "server": "hk.example.com",
+          "server_port": 8388,
+          "method": "aes-256-gcm",
+          "password": "your-password"
+        }
+      ]
+    }
+  ],
+  "inbounds": [
+    {
+      "tag": "mixed-in",
+      "type": "mixed",
+      "listen": "127.0.0.1",
+      "listen_port": 2080
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "type": "selector",
+      "outbounds": [
+        "auto",
+        "manual",
+        "provider://机场订阅",
+        "provider://本地备用", 
+        "provider://直连节点",
+        "direct"
+      ]
+    },
+    {
+      "tag": "auto",
+      "type": "urltest",
+      "outbounds": [
+        "provider://机场订阅"
+      ],
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "10m",
+      "tolerance": 50
+    },
+    {
+      "tag": "manual",
+      "type": "selector",
+      "outbounds": [
+        "provider://机场订阅",
+        "provider://本地备用"
+      ]
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "rule_set": [
+      {
+        "tag": "geosite-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+        "download_detour": "direct"
+      },
+      {
+        "tag": "geoip-cn",
+        "type": "remote", 
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+        "download_detour": "direct"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          ".cn"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "geosite-cn"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "geoip-cn"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ],
+    "final": "proxy",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db"
+    }
+  }
+}
