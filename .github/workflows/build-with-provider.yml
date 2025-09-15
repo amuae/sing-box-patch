@@ -198,7 +198,7 @@ jobs:
         run: |
           set -euo pipefail
           
-          # 构建标签
+          # 构建标签 (使用官方默认标签)
           BUILD_TAGS="with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api,with_tailscale"
           
           # 版本信息
