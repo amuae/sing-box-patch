@@ -179,13 +179,14 @@ jobs:
           name: prepared-source
           path: ./
           
+      - name: 安装必要工具
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y zip unzip
+          
       - name: 设置Android NDK
         if: matrix.platform.os == 'android'
         run: |
-          # 安装Android NDK
-          sudo apt-get update -qq
-          sudo apt-get install -y wget unzip
-          
           # 下载并安装NDK
           NDK_VERSION="r25c"
           wget -q https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip
@@ -292,17 +293,25 @@ jobs:
             zip -r "${PACKAGE_NAME}.zip" "$PACKAGE_NAME"
             rm -rf "$PACKAGE_NAME"
             echo "📦 创建: ${PACKAGE_NAME}.zip"
+            ls -la "${PACKAGE_NAME}.zip"
           else
             tar -czvf "${PACKAGE_NAME}.tar.gz" "$PACKAGE_NAME"
             rm -rf "$PACKAGE_NAME"
             echo "📦 创建: ${PACKAGE_NAME}.tar.gz"
+            ls -la "${PACKAGE_NAME}.tar.gz"
           fi
+          
+          # 列出所有文件
+          echo "📁 dist目录内容:"
+          ls -la
           
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.platform.name }}
-          path: dist/*.tar.gz dist/*.zip
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
           if-no-files-found: error
 
   release:
