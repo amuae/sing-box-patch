@@ -132,12 +132,7 @@ jobs:
           PLATFORMS="${{ github.event.inputs.build_platforms || 'all' }}"
           
           if [ "$PLATFORMS" = "all" ]; then
-            MATRIX='[
-              {"name": "linux-amd64", "os": "linux", "arch": "amd64"},
-              {"name": "linux-arm64", "os": "linux", "arch": "arm64"},
-              {"name": "windows-amd64", "os": "windows", "arch": "amd64"},
-              {"name": "android-arm64", "os": "android", "arch": "arm64", "ndk": "aarch64-linux-android21"}
-            ]'
+            MATRIX='[{"name": "linux-amd64", "os": "linux", "arch": "amd64"}, {"name": "linux-arm64", "os": "linux", "arch": "arm64"}, {"name": "windows-amd64", "os": "windows", "arch": "amd64"}, {"name": "android-arm64", "os": "android", "arch": "arm64", "ndk": "aarch64-linux-android21"}]'
           else
             case "$PLATFORMS" in
               "linux-amd64")
@@ -156,7 +151,7 @@ jobs:
           fi
           
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          echo "📋 构建矩阵: $MATRIX"
+          echo "📋 构建矩阵已生成"
           
       - name: 上传准备好的源码
         uses: actions/upload-artifact@v4
