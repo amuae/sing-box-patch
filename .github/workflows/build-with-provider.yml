@@ -36,7 +36,7 @@ on:
         type: boolean
 
 env:
-  GO_VERSION: '1.23.1'
+  GO_VERSION: '1.24'
 
 permissions:
   contents: write
@@ -133,7 +133,7 @@ jobs:
           PLATFORMS="${{ github.event.inputs.build_platforms || 'all' }}"
           
           if [ "$PLATFORMS" = "all" ]; then
-            MATRIX='[{"name": "linux-amd64", "os": "linux", "arch": "amd64"}, {"name": "linux-arm64", "os": "linux", "arch": "arm64"}, {"name": "windows-amd64", "os": "windows", "arch": "amd64"}, {"name": "android-arm64", "os": "android", "arch": "arm64", "ndk": "aarch64-linux-android21"}]'
+            MATRIX='[{"name": "linux-amd64", "os": "linux", "arch": "amd64"}, {"name": "linux-arm64", "os": "linux", "arch": "arm64"}, {"name": "windows-amd64", "os": "windows", "arch": "amd64"}, {"name": "android-arm64", "os": "android", "arch": "arm64", "ndk": "aarch64-linux-android33"}]'
           else
             case "$PLATFORMS" in
               "linux-amd64")
@@ -146,7 +146,7 @@ jobs:
                 MATRIX='[{"name": "windows-amd64", "os": "windows", "arch": "amd64"}]'
                 ;;
               "android-arm64")
-                MATRIX='[{"name": "android-arm64", "os": "android", "arch": "arm64", "ndk": "aarch64-linux-android21"}]'
+                MATRIX='[{"name": "android-arm64", "os": "android", "arch": "arm64", "ndk": "aarch64-linux-android33"}]'
                 ;;
             esac
           fi
@@ -210,8 +210,14 @@ jobs:
         run: |
           set -euo pipefail
           
-          # 构建标签 (使用官方默认标签)
-          BUILD_TAGS="with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api,with_tailscale"
+          # 根据平台选择构建标签 (Android需要避免tailscale冲突)
+          if [ "${{ matrix.platform.os }}" = "android" ]; then
+            # Android构建 - 避免wireguard/tailscale冲突
+            BUILD_TAGS="with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api"
+          else
+            # 其他平台 - 完整标签支持
+            BUILD_TAGS="with_gvisor,with_quic,with_dhcp,with_wireguard,with_utls,with_acme,with_clash_api,with_tailscale"
+          fi
           
           # 版本信息
           VERSION="${{ needs.prepare.outputs.version }}"
@@ -220,6 +226,7 @@ jobs:
           mkdir -p dist
           
           echo "🔨 开始构建 ${{ matrix.platform.name }}..."
+          echo "📋 构建标签: $BUILD_TAGS"
           
           if [ "${{ matrix.platform.os }}" = "android" ]; then
             # Android构建

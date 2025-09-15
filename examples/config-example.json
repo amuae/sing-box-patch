@@ -7,7 +7,7 @@
     {
       "tag": "机场订阅",
       "type": "remote",
-      "remote_url": "https://example.com/subscription?token=your-token",
+      "url": "https://example.com/subscription?token=your-token",
       "download_interval": "6h",
       "download_ua": "clash.meta",
       "includes": [
