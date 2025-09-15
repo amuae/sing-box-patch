@@ -1,0 +1,18 @@
+diff --git a/common/interrupt/context.go b/common/interrupt/context.go
+index 44726b2d..ba91601a 100644
+--- a/common/interrupt/context.go
++++ b/common/interrupt/context.go
+@@ -11,3 +11,13 @@ func ContextWithIsExternalConnection(ctx context.Context) context.Context {
+ func IsExternalConnectionFromContext(ctx context.Context) bool {
+ 	return ctx.Value(contextKeyIsExternalConnection{}) != nil
+ }
++
++type contextKeyIsProviderConnection struct{}
++
++func ContextWithIsProviderConnection(ctx context.Context) context.Context {
++	return context.WithValue(ctx, contextKeyIsProviderConnection{}, true)
++}
++
++func IsProviderConnectionFromContext(ctx context.Context) bool {
++	return ctx.Value(contextKeyIsProviderConnection{}) != nil
++}

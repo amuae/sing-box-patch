@@ -1,0 +1,13 @@
+diff --git a/adapter/experimental.go b/adapter/experimental.go
+index de01d7be..fcf36cf1 100644
+--- a/adapter/experimental.go
++++ b/adapter/experimental.go
+@@ -52,6 +52,8 @@ type CacheFile interface {
+ 	StoreGroupExpand(group string, expand bool) error
+ 	LoadRuleSet(tag string) *SavedBinary
+ 	SaveRuleSet(tag string, set *SavedBinary) error
++	LoadSubscription(tag string) *SavedBinary
++	SaveSubscription(tag string, sub *SavedBinary) error
+ }
+ 
+ type SavedBinary struct {
