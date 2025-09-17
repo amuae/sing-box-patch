@@ -232,8 +232,17 @@ jobs:
           
           # Android 特殊设置
           if [ "${{ matrix.goos }}" = "android" ]; then
-            echo "CC=${{ env.ANDROID_NDK_ROOT }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang" >> $GITHUB_ENV
-            echo "CXX=${{ env.ANDROID_NDK_ROOT }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++" >> $GITHUB_ENV
+            # 修复Android NDK路径
+            echo "CC=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang" >> $GITHUB_ENV
+            echo "CXX=$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++" >> $GITHUB_ENV
+          fi
+          
+          # Linux ARM64 特殊设置 - 安装交叉编译工具链
+          if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "arm64" ]; then
+            sudo apt-get update
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+            echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
           fi
       
       - name: 编译 sing-box
@@ -254,8 +263,23 @@ jobs:
           
           BUILD_TAGS="${{ env.BUILD_TAGS }}"
           
+          # 平台特定的CGO设置
+          if [ "${{ matrix.goos }}" = "android" ]; then
+            echo "📱 Android平台 - 禁用CGO以避免NDK问题"
+            export CGO_ENABLED=0
+            # 移除需要CGO的标签
+            BUILD_TAGS="with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api"
+          elif [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "arm64" ]; then
+            echo "🔧 Linux ARM64 - 使用交叉编译工具链"
+            export CGO_ENABLED=1
+          else
+            echo "💻 本地平台 - 启用完整CGO支持"
+            export CGO_ENABLED=1
+          fi
+          
           echo "📋 编译标签: $BUILD_TAGS"
           echo "🔧 LDFLAGS: $LDFLAGS"
+          echo "⚙️ CGO_ENABLED: $CGO_ENABLED"
           
           # 编译
           go build -v -trimpath \
