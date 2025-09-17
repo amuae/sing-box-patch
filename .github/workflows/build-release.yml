@@ -68,14 +68,14 @@ jobs:
             
             if [ "$version" = "latest" ]; then
               if [ "$tag" = "release" ]; then
-                # 查询release版本
+                # 查询release版本 - 使用正确的双重转义
                 curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | \
-                  jq -r ".[] | select(.prerelease == false and (.tag_name | test(\"^v${branch}\\.[0-9]+$\"))) | .tag_name" | \
+                  jq -r ".[] | select(.prerelease == false and (.tag_name | test(\"^v${branch}\\\\.[0-9]+\$\"))) | .tag_name" | \
                   head -1
               else
-                # 查询pre-release版本
+                # 查询pre-release版本 - 使用正确的双重转义
                 curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | \
-                  jq -r ".[] | select(.prerelease == true and (.tag_name | test(\"^v${branch}\\.[0-9]+-${tag}\\.[0-9]+$\"))) | .tag_name" | \
+                  jq -r ".[] | select(.prerelease == true and (.tag_name | test(\"^v${branch}\\\\.[0-9]+-${tag}\\\\.[0-9]+\$\"))) | .tag_name" | \
                   head -1
               fi
             else
