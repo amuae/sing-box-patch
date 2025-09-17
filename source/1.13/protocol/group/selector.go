@@ -292,7 +292,7 @@ func (s *Selector) outboundSelect() (adapter.Outbound, error) {
 	}
 
 	if len(s.tags) == 0 {
-		return nil, E.New("no available outbounds in selector: ", s.tag)
+		return nil, E.New("no available outbounds in selector: ", s.Tag())
 	}
 
 	return s.outbounds[s.tags[0]], nil
