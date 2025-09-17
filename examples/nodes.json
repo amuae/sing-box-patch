@@ -1,0 +1,40 @@
+[
+  {
+    "type": "vless",
+    "tag": "香港节点01",
+    "server": "hk01.example.com",
+    "server_port": 443,
+    "uuid": "12345678-1234-1234-1234-123456789abc",
+    "tls": {
+      "enabled": true,
+      "server_name": "hk01.example.com",
+      "alpn": ["h2", "http/1.1"]
+    },
+    "transport": {
+      "type": "ws",
+      "path": "/websocket",
+      "headers": {
+        "Host": "hk01.example.com"
+      }
+    }
+  },
+  {
+    "type": "shadowsocks",
+    "tag": "美国节点01",
+    "server": "us01.example.com",
+    "server_port": 8388,
+    "method": "aes-256-gcm",
+    "password": "your-password-here"
+  },
+  {
+    "type": "trojan",
+    "tag": "日本节点01",
+    "server": "jp01.example.com",
+    "server_port": 443,
+    "password": "your-trojan-password",
+    "tls": {
+      "enabled": true,
+      "server_name": "jp01.example.com"
+    }
+  }
+]

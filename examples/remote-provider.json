@@ -1,0 +1,92 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "providers": [
+    {
+      "type": "remote",
+      "tag": "airport-subscription",
+      "url": "https://example.com/subscription-url",
+      "update_interval": "24h",
+      "health_check": {
+        "enabled": true,
+        "url": "https://www.google.com/generate_204",
+        "interval": "10m",
+        "timeout": "5s"
+      }
+    }
+  ],
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 2080
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "proxy",
+      "providers": ["airport-subscription"],
+      "exclude": "测试|过期|剩余流量",
+      "include": "香港|美国|日本|新加坡",
+      "default": "auto"
+    },
+    {
+      "type": "urltest",
+      "tag": "auto",
+      "providers": ["airport-subscription"],
+      "include": "香港|美国|日本",
+      "url": "https://www.google.com/generate_204",
+      "interval": "10m",
+      "tolerance": 50
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "domain_suffix": [
+          "google.com",
+          "youtube.com",
+          "github.com"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "rule_set": "geoip-cn",
+        "outbound": "direct"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
+        "download_detour": "direct"
+      }
+    ],
+    "final": "proxy",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "external_ui_download_url": "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip",
+      "external_ui_download_detour": "proxy",
+      "secret": "",
+      "default_mode": "rule"
+    }
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "providers": [
+    {
+      "type": "inline",
+      "tag": "manual-nodes",
+      "outbounds": [
+        {
+          "type": "vless",
+          "tag": "香港节点",
+          "server": "hk.example.com",
+          "server_port": 443,
+          "uuid": "12345678-1234-1234-1234-123456789abc",
+          "tls": {
+            "enabled": true,
+            "server_name": "hk.example.com"
+          }
+        },
+        {
+          "type": "shadowsocks",
+          "tag": "美国节点",
+          "server": "us.example.com",
+          "server_port": 8388,
+          "method": "aes-256-gcm", 
+          "password": "your-password-here"
+        },
+        {
+          "type": "trojan",
+          "tag": "日本节点",
+          "server": "jp.example.com",
+          "server_port": 443,
+          "password": "your-trojan-password",
+          "tls": {
+            "enabled": true,
+            "server_name": "jp.example.com"
+          }
+        }
+      ],
+      "health_check": {
+        "enabled": true,
+        "url": "https://www.google.com/generate_204",
+        "interval": "10m"
+      }
+    }
+  ],
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 2080
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "国外",
+      "providers": ["manual-nodes"],
+      "include": "香港|美国|日本",
+      "default": "香港节点"
+    },
+    {
+      "type": "urltest",
+      "tag": "自动选择",
+      "providers": ["manual-nodes"],
+      "url": "https://www.google.com/generate_204",
+      "interval": "10m"
+    },
+    {
+      "type": "direct",
+      "tag": "直连"
+    },
+    {
+      "type": "block",
+      "tag": "拦截"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "domain_suffix": [
+          "google.com",
+          "youtube.com",
+          "github.com"
+        ],
+        "outbound": "国外"
+      },
+      {
+        "rule_set": "geoip-cn",
+        "outbound": "直连"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geoip-cn",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
+        "download_detour": "直连"
+      }
+    ],
+    "final": "国外",
+    "auto_detect_interface": true
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "secret": "",
+      "default_mode": "rule"
+    }
+  }
+}

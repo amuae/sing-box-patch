@@ -1,0 +1,20 @@
+--- a/adapter/provider/adapter.go
++++ /dev/null
+@@ -1,1 +0,0 @@
+-// This file should be moved to provider/adapter.go
+--- a/adapter/provider/inline.go
++++ /dev/null
+@@ -1,1 +0,0 @@
+-// This file should be moved to provider/inline.go
+--- a/adapter/provider/local.go
++++ /dev/null
+@@ -1,1 +0,0 @@
+-// This file should be moved to provider/local.go
+--- a/adapter/provider/remote.go
++++ /dev/null
+@@ -1,1 +0,0 @@
+-// This file should be moved to provider/remote.go
+--- a/adapter/provider/manager.go
++++ /dev/null
+@@ -1,1 +0,0 @@
+-// This file should be moved to provider/manager.go

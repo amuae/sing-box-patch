@@ -1,0 +1,32 @@
+--- a/protocol/group/selector.go
++++ b/protocol/group/selector.go
+@@ -45,6 +45,16 @@ func NewSelector(ctx context.Context, router adapter.Router, logger log.Context
+ 		return nil, E.New("missing tag")
+ 	}
+ 
++	// 验证 Provider 配置
++	if len(options.Providers) > 0 {
++		for _, providerTag := range options.Providers {
++			if providerTag == "" {
++				return nil, E.New("empty provider tag in selector: ", options.Tag)
++			}
++		}
++	}
++
++	// 验证至少有 outbounds 或 providers
+ 	if len(options.Outbounds) == 0 && len(options.Providers) == 0 {
+ 		return nil, E.New("no outbounds or providers specified")
+ 	}
+@@ -87,6 +97,12 @@ func (s *Selector) Start() error {
+ 		}
+ 	}
+ 
++	// 检查启动后是否有可用节点
++	if len(s.outbounds) == 0 {
++		s.logger.Warn("selector has no available outbounds after start")
++		return E.New("no available outbounds in selector: ", s.tag)
++	}
++
+ 	// 设置默认选择
+ 	if s.options.Default != "" {
+ 		if err := s.SelectOutbound(s.options.Default); err != nil {

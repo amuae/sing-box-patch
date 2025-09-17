@@ -1,0 +1,11 @@
+--- a/adapter/provider.go
++++ b/adapter/provider.go
+@@ -4,7 +4,7 @@ import (
+ 	"context"
+ 
+ 	"github.com/sagernet/sing-box/option"
+-	providerRegistry "github.com/sagernet/sing-box/adapter/provider"
++	providerRegistry "github.com/sagernet/sing-box/provider"
+ 	"github.com/sagernet/sing/service"
+ )
+ 

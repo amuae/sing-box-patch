@@ -1,0 +1,53 @@
+# 编译产物
+build/sing-box*
+*.exe
+*.bin
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+.vscode/
+*.log
+
+# Go相关
+go.mod
+go.sum
+vendor/
+
+# 缓存文件
+cache.db
+*.cache
+
+# 配置文件（敏感信息）
+config.json
+*config*.json
+!examples/*.json
+
+# 系统文件
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE文件
+.idea/
+*.iml
+.vscode/
+
+# 测试文件
+test_output/
+*.test
+
+# 备份文件
+*.backup
+*.bak
+backup_*/
+
+# OS生成文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
