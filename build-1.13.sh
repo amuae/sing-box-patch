@@ -192,7 +192,7 @@ fi
 
 # 检查 Go 版本
 GO_VERSION=$(go version | grep -oE 'go[0-9]+\.[0-9]+\.[0-9]+' | sed 's/go//')
-REQUIRED_GO_VERSION="1.23.0"  # 根据实际调研，1.13系列使用Go 1.23
+REQUIRED_GO_VERSION="1.24.7"  # 恢复到用户要求的版本
 
 # 版本比较函数
 version_compare() {
@@ -209,7 +209,7 @@ version_compare() {
 
 if ! version_compare "$GO_VERSION" "$REQUIRED_GO_VERSION"; then
     print_error "Go 版本过低: $GO_VERSION (要求: >= $REQUIRED_GO_VERSION)"
-    print_error "sing-box v1.13.0+ 需要 Go 1.23.0 或更高版本"
+    print_error "sing-box v1.13.0+ 需要 Go 1.24.7 或更高版本"
     print_error "请升级 Go 版本: https://golang.org/dl/"
     exit 1
 fi

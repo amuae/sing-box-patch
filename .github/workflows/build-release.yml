@@ -36,7 +36,7 @@ on:
         type: boolean
 
 env:
-  GO_VERSION: '1.23'
+  GO_VERSION: '1.24.7'
   CGO_ENABLED: '1'
   BUILD_TAGS: 'with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor,with_tailscale'
 
