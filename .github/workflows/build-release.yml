@@ -36,13 +36,13 @@ on:
         type: boolean
 
 env:
-  GO_VERSION: '1.23'  # 根据实际调研，1.12/1.13版本使用Go 1.23
+  GO_VERSION: '1.23'
   CGO_ENABLED: '1'
   BUILD_TAGS: 'with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor,with_tailscale'
 
 jobs:
   get-version:
-    name: 获取版本信息 (${{ inputs.source_branch }}-${{ inputs.source_tag }}-${{ inputs.source_version }})
+    name: 获取版本信息
     runs-on: ubuntu-latest
     outputs:
       version_tag: ${{ steps.version.outputs.version_tag }}
@@ -52,139 +52,114 @@ jobs:
       - name: 设置版本信息
         id: version
         run: |
-          # 智能版本查询和降级逻辑
-          echo "🔍 开始智能版本查询..."
+          echo "🔍 开始版本查询..."
           
           BRANCH="${{ inputs.source_branch }}"
           TAG="${{ inputs.source_tag }}"
           VERSION="${{ inputs.source_version }}"
           
-          # 定义降级顺序，针对不同版本系列
-          if [ "$BRANCH" = "1.13" ]; then
-            # 1.13系列目前只有alpha版本
-            FALLBACK_ORDER=("alpha")
-          else
-            # 其他版本支持完整发布周期
-            FALLBACK_ORDER=("release" "rc" "beta" "alpha")
-          fi
+          echo "输入参数: $BRANCH / $TAG / $VERSION"
           
-          # 查找版本的函数
-          find_version() {
+          # 查询版本函数
+          query_version() {
             local branch=$1
             local tag=$2
             local version=$3
             
-            echo "🔍 查询 $branch $tag $version..."
-            
             if [ "$version" = "latest" ]; then
-              # 查询最新版本
               if [ "$tag" = "release" ]; then
-                # Release 版本: v1.12.8 (1.13系列暂无release版本)
-                if [ "$branch" = "1.13" ]; then
-                  echo "⚠️ 1.13系列暂无release版本，请使用alpha版本"
-                  return 1
-                fi
-                local query_pattern="^v${branch}\\.[0-9]+$"
+                # 查询release版本
                 curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | \
-                  jq -r ".[] | select(.prerelease == false and (.tag_name | test(\"$query_pattern\"))) | .tag_name" | \
-                  sort -V | tail -1
+                  jq -r ".[] | select(.prerelease == false and (.tag_name | test(\"^v${branch}\\.[0-9]+$\"))) | .tag_name" | \
+                  head -1
               else
-                # Pre-release 版本: v1.13.0-alpha.15, v1.12.0-rc.4
-                local query_pattern="^v${branch}\\.[0-9]+-${tag}\\.[0-9]+$"
+                # 查询pre-release版本
                 curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | \
-                  jq -r ".[] | select(.prerelease == true and (.tag_name | test(\"$query_pattern\"))) | .tag_name" | \
-                  sort -V | tail -1
+                  jq -r ".[] | select(.prerelease == true and (.tag_name | test(\"^v${branch}\\.[0-9]+-${tag}\\.[0-9]+$\"))) | .tag_name" | \
+                  head -1
               fi
             else
-              # 检查指定版本是否存在
+              # 检查指定版本
               local target_tag
               if [ "$tag" = "release" ]; then
-                if [ "$branch" = "1.13" ]; then
-                  echo "⚠️ 1.13系列暂无release版本，请使用alpha版本"
-                  return 1
-                fi
                 target_tag="v${branch}.${version}"
               else
                 target_tag="v${branch}.0-${tag}.${version}"
               fi
               
               # 验证版本是否存在
-              local status_code=$(curl -s -o /dev/null -w "%{http_code}" "https://api.github.com/repos/SagerNet/sing-box/releases/tags/${target_tag}")
-              if [ "$status_code" = "200" ]; then
+              if curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/tags/${target_tag}" | jq -e '.tag_name' >/dev/null 2>&1; then
                 echo "$target_tag"
-              else
-                return 1
               fi
             fi
           }
           
-          # 尝试查找版本，如果失败则按顺序降级
-          FOUND_VERSION=""
-          CURRENT_TAG="$TAG"
-          
-          # 首先尝试原始请求
-          echo "🎯 尝试查找: $BRANCH $CURRENT_TAG $VERSION"
-          FOUND_VERSION=$(find_version "$BRANCH" "$CURRENT_TAG" "$VERSION")
-          EXIT_CODE=$?
-          
-          if [ $EXIT_CODE -eq 0 ] && [ -n "$FOUND_VERSION" ] && [ "$FOUND_VERSION" != "null" ]; then
-            echo "✅ 找到版本: $FOUND_VERSION"
+          # 定义降级顺序
+          if [ "$BRANCH" = "1.13" ]; then
+            # 1.13系列只有alpha版本
+            FALLBACK_TAGS=("alpha")
           else
-            echo "⚠️ 未找到 $BRANCH $CURRENT_TAG $VERSION，开始降级查询..."
+            # 其他版本的完整降级顺序
+            FALLBACK_TAGS=("release" "rc" "beta" "alpha")
+          fi
+          
+          # 查找版本
+          FOUND_VERSION=""
+          FINAL_TAG="$TAG"
+          
+          # 首先尝试用户请求的版本
+          echo "🎯 查询: $BRANCH $TAG $VERSION"
+          FOUND_VERSION=$(query_version "$BRANCH" "$TAG" "$VERSION")
+          
+          # 如果没找到，开始降级
+          if [ -z "$FOUND_VERSION" ] || [ "$FOUND_VERSION" = "null" ]; then
+            echo "⚠️ 未找到请求的版本，开始降级..."
             
-            # 找到当前标签在降级顺序中的位置
-            START_INDEX=-1
-            for i in "${!FALLBACK_ORDER[@]}"; do
-              if [ "${FALLBACK_ORDER[$i]}" = "$CURRENT_TAG" ]; then
-                START_INDEX=$i
+            # 确定降级起始位置
+            start_index=0
+            for i in "${!FALLBACK_TAGS[@]}"; do
+              if [ "${FALLBACK_TAGS[$i]}" = "$TAG" ]; then
+                start_index=$i
                 break
               fi
             done
             
-            # 如果当前标签不在降级列表中，从第一个开始
-            if [ $START_INDEX -eq -1 ]; then
-              START_INDEX=0
-            fi
-            
-            # 按降级顺序查找最新版本
-            for ((i=START_INDEX; i<${#FALLBACK_ORDER[@]}; i++)); do
-              FALLBACK_TAG="${FALLBACK_ORDER[$i]}"
-              echo "🔄 尝试降级到 $FALLBACK_TAG..."
+            # 按顺序降级查找
+            for ((i=start_index; i<${#FALLBACK_TAGS[@]}; i++)); do
+              fallback_tag="${FALLBACK_TAGS[$i]}"
+              echo "🔄 尝试降级到: $fallback_tag"
               
-              FOUND_VERSION=$(find_version "$BRANCH" "$FALLBACK_TAG" "latest")
-              EXIT_CODE=$?
+              FOUND_VERSION=$(query_version "$BRANCH" "$fallback_tag" "latest")
               
-              if [ $EXIT_CODE -eq 0 ] && [ -n "$FOUND_VERSION" ] && [ "$FOUND_VERSION" != "null" ]; then
+              if [ -n "$FOUND_VERSION" ] && [ "$FOUND_VERSION" != "null" ]; then
                 echo "✅ 降级成功: $FOUND_VERSION"
-                CURRENT_TAG="$FALLBACK_TAG"
+                FINAL_TAG="$fallback_tag"
                 break
               fi
             done
           fi
           
+          # 检查最终结果
           if [ -z "$FOUND_VERSION" ] || [ "$FOUND_VERSION" = "null" ]; then
-            echo "❌ 未找到任何可用版本"
-            echo "请检查输入的版本参数："
-            echo "- 分支: $BRANCH"
-            echo "- 标签: $TAG"  
-            echo "- 版本: $VERSION"
+            echo "❌ 无法找到任何可用版本"
+            echo "分支: $BRANCH, 标签: $TAG, 版本: $VERSION"
             exit 1
           fi
           
-          # 提取纯版本号 (去掉 v 前缀)
+          # 提取版本号
           VERSION_NUMBER="${FOUND_VERSION#v}"
           
+          # 输出结果
           echo "version_tag=$FOUND_VERSION" >> $GITHUB_OUTPUT
           echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
-          echo "actual_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
+          echo "actual_tag=$FINAL_TAG" >> $GITHUB_OUTPUT
           
           echo "🎯 最终版本: $FOUND_VERSION"
           echo "📦 版本号: $VERSION_NUMBER"
-          echo "🏷️ 实际标签: $CURRENT_TAG"
+          echo "🏷️ 实际标签: $FINAL_TAG"
           
-          # 如果发生了降级，输出警告信息
-          if [ "$CURRENT_TAG" != "$TAG" ]; then
-            echo "⚠️ 版本已降级: $TAG -> $CURRENT_TAG"
+          if [ "$FINAL_TAG" != "$TAG" ]; then
+            echo "⚠️ 版本已降级: $TAG -> $FINAL_TAG"
           fi
 
   build:
@@ -239,7 +214,8 @@ jobs:
       - name: 应用补丁
         run: |
           echo "🔧 应用 ${{ inputs.source_branch }} 版本补丁..."
-          # 检查补丁目录是否存在
+          
+          # 检查补丁目录
           if [ ! -d "source/${{ inputs.source_branch }}" ]; then
             echo "❌ 补丁目录 source/${{ inputs.source_branch }} 不存在"
             exit 1
@@ -276,7 +252,6 @@ jobs:
                    -X 'github.com/sagernet/sing-box/constant.BuildTime=$BUILD_TIME' \
                    -s -w -buildid="
           
-          # 使用预定义的完整编译标签
           BUILD_TAGS="${{ env.BUILD_TAGS }}"
           
           echo "📋 编译标签: $BUILD_TAGS"
@@ -295,7 +270,6 @@ jobs:
       - name: 测试编译产物
         working-directory: sing-box-source
         run: |
-          # 仅在 linux-amd64 上测试 (native 平台)
           if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "amd64" ]; then
             echo "🧪 测试编译产物..."
             ./sing-box-${{ matrix.goos }}-${{ matrix.goarch }} version
@@ -309,7 +283,6 @@ jobs:
         run: |
           echo "📦 打包编译产物..."
           
-          # 创建目录结构
           PACKAGE_NAME="sing-box-${{ matrix.goos }}-${{ matrix.goarch }}-${{ needs.get-version.outputs.version_number }}"
           mkdir -p "$PACKAGE_NAME"
           
@@ -355,7 +328,6 @@ jobs:
           tar -czf "$PACKAGE_NAME.tar.gz" "$PACKAGE_NAME"
           echo "✅ 打包完成: $PACKAGE_NAME.tar.gz"
           
-          # 输出文件信息
           ls -la "$PACKAGE_NAME.tar.gz"
       
       - name: 上传构建产物
@@ -381,10 +353,8 @@ jobs:
           echo "📦 准备 Release 文件..."
           mkdir -p release-files
           
-          # 移动所有文件到 release-files 目录
           find artifacts -name "*.tar.gz" -exec cp {} release-files/ \;
           
-          # 显示文件列表
           echo "🎯 Release 文件列表:"
           ls -la release-files/
       
