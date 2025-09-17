@@ -60,20 +60,12 @@ jobs:
           VERSION="${{ inputs.source_version }}"
           
           # 定义降级顺序，针对不同版本系列
-          declare -A FALLBACK_ORDERS
           if [ "$BRANCH" = "1.13" ]; then
             # 1.13系列目前只有alpha版本
-            FALLBACK_ORDERS["1.13"]="alpha"
+            FALLBACK_ORDER=("alpha")
           else
             # 其他版本支持完整发布周期
-            FALLBACK_ORDERS["default"]="release rc beta alpha"
-          fi
-          
-          # 获取当前分支的降级顺序
-          if [[ -n "${FALLBACK_ORDERS[$BRANCH]}" ]]; then
-            FALLBACK_ORDER=(${FALLBACK_ORDERS[$BRANCH]})
-          else
-            FALLBACK_ORDER=(${FALLBACK_ORDERS["default"]})
+            FALLBACK_ORDER=("release" "rc" "beta" "alpha")
           fi
           
           # 查找版本的函数
@@ -84,24 +76,21 @@ jobs:
             
             echo "🔍 查询 $branch $tag $version..."
             
-            # 根据版本系列调整查询策略
-            local query_pattern
             if [ "$version" = "latest" ]; then
               # 查询最新版本
               if [ "$tag" = "release" ]; then
                 # Release 版本: v1.12.8 (1.13系列暂无release版本)
                 if [ "$branch" = "1.13" ]; then
                   echo "⚠️ 1.13系列暂无release版本，请使用alpha版本"
-                  echo ""
                   return 1
                 fi
-                query_pattern="^v${branch}\\.[0-9]+$"
+                local query_pattern="^v${branch}\\.[0-9]+$"
                 curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | \
                   jq -r ".[] | select(.prerelease == false and (.tag_name | test(\"$query_pattern\"))) | .tag_name" | \
                   sort -V | tail -1
               else
                 # Pre-release 版本: v1.13.0-alpha.15, v1.12.0-rc.4
-                query_pattern="^v${branch}\\.[0-9]+-${tag}\\.[0-9]+$"
+                local query_pattern="^v${branch}\\.[0-9]+-${tag}\\.[0-9]+$"
                 curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | \
                   jq -r ".[] | select(.prerelease == true and (.tag_name | test(\"$query_pattern\"))) | .tag_name" | \
                   sort -V | tail -1
@@ -112,7 +101,6 @@ jobs:
               if [ "$tag" = "release" ]; then
                 if [ "$branch" = "1.13" ]; then
                   echo "⚠️ 1.13系列暂无release版本，请使用alpha版本"
-                  echo ""
                   return 1
                 fi
                 target_tag="v${branch}.${version}"
@@ -121,10 +109,11 @@ jobs:
               fi
               
               # 验证版本是否存在
-              if curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/tags/${target_tag}" | jq -e '.tag_name' > /dev/null 2>&1; then
+              local status_code=$(curl -s -o /dev/null -w "%{http_code}" "https://api.github.com/repos/SagerNet/sing-box/releases/tags/${target_tag}")
+              if [ "$status_code" = "200" ]; then
                 echo "$target_tag"
               else
-                echo ""
+                return 1
               fi
             fi
           }
@@ -134,9 +123,13 @@ jobs:
           CURRENT_TAG="$TAG"
           
           # 首先尝试原始请求
+          echo "🎯 尝试查找: $BRANCH $CURRENT_TAG $VERSION"
           FOUND_VERSION=$(find_version "$BRANCH" "$CURRENT_TAG" "$VERSION")
+          EXIT_CODE=$?
           
-          if [ -z "$FOUND_VERSION" ]; then
+          if [ $EXIT_CODE -eq 0 ] && [ -n "$FOUND_VERSION" ] && [ "$FOUND_VERSION" != "null" ]; then
+            echo "✅ 找到版本: $FOUND_VERSION"
+          else
             echo "⚠️ 未找到 $BRANCH $CURRENT_TAG $VERSION，开始降级查询..."
             
             # 找到当前标签在降级顺序中的位置
@@ -148,7 +141,7 @@ jobs:
               fi
             done
             
-            # 如果当前标签不在降级列表中，从 release 开始
+            # 如果当前标签不在降级列表中，从第一个开始
             if [ $START_INDEX -eq -1 ]; then
               START_INDEX=0
             fi
@@ -159,8 +152,9 @@ jobs:
               echo "🔄 尝试降级到 $FALLBACK_TAG..."
               
               FOUND_VERSION=$(find_version "$BRANCH" "$FALLBACK_TAG" "latest")
+              EXIT_CODE=$?
               
-              if [ -n "$FOUND_VERSION" ]; then
+              if [ $EXIT_CODE -eq 0 ] && [ -n "$FOUND_VERSION" ] && [ "$FOUND_VERSION" != "null" ]; then
                 echo "✅ 降级成功: $FOUND_VERSION"
                 CURRENT_TAG="$FALLBACK_TAG"
                 break
@@ -168,8 +162,12 @@ jobs:
             done
           fi
           
-          if [ -z "$FOUND_VERSION" ]; then
+          if [ -z "$FOUND_VERSION" ] || [ "$FOUND_VERSION" = "null" ]; then
             echo "❌ 未找到任何可用版本"
+            echo "请检查输入的版本参数："
+            echo "- 分支: $BRANCH"
+            echo "- 标签: $TAG"  
+            echo "- 版本: $VERSION"
             exit 1
           fi
           
