@@ -1,71 +1,138 @@
-# Sing-Box Provider Patch
+# Sing-Box Provider Patch# Sing-Box Provider Patch
 
-🚀 **为官方 SagerNet/sing-box 添加完整的 Providers 订阅功能！**
 
-这是一个基于 yelnoo/sing-box 的补丁项目，为官方 sing-box 添加完整的 Provider 订阅功能，包括远程订阅、本地配置文件和内联节点支持。
 
-## 📋 环境要求
+🚀 **为官方 SagerNet/sing-box 添加完整的 Providers 订阅功能！**🚀 **为官方 SagerNet/sing-box 添加完整的 Providers 订阅功能！**
 
-- **Go 版本**: 1.24.7 或更高版本 ⚠️ **必须**
-- **Git**: 用于获取源码和应用补丁
+
+
+基于 yelnoo/sing-box 的补丁项目，为官方 sing-box 添加完整的 Provider 订阅功能。这是一个基于 yelnoo/sing-box 的补丁项目，为官方 sing-box 添加完整的 Provider 订阅功能，包括远程订阅、本地配置文件和内联节点支持。
+
+
+
+## 📋 环境要求## 📋 环境要求
+
+
+
+- **Go 版本**: 1.24.7 或更高版本 ⚠️ **必须**- **Go 版本**: 1.24.7 或更高版本 ⚠️ **必须**
+
+- **Git**: 用于获取源码和应用补丁- **Git**: 用于获取源码和应用补丁
+
 - **操作系统**: Linux / macOS / Windows
 
-> **重要**: 由于 sing-box v1.13.0+ 的 go.mod 要求，本项目现在只支持 Go 1.24.7 及以上版本。
-> 
-> 📖 **详细说明**: [Go 版本要求说明](docs/go-version-requirements.md)
+### 🚀 快速升级 Go
 
-### 🚀 快速升级 Go (Linux/macOS)
+> **重要**: 由于 sing-box v1.13.0+ 的 go.mod 要求，本项目现在只支持 Go 1.24.7 及以上版本。
+
+```bash> 
+
+./install-go.sh> 📖 **详细说明**: [Go 版本要求说明](docs/go-version-requirements.md)
+
+source ~/.bashrc
+
+go version### 🚀 快速升级 Go (Linux/macOS)
+
+```
 
 如果您的 Go 版本过低，可以使用我们提供的快速安装脚本：
 
+## 🚀 快速开始
+
 ```bash
-# 下载并安装 Go 1.24.7
+
+### 自动编译# 下载并安装 Go 1.24.7
+
 ./install-go.sh
 
-# 重新加载环境变量
-source ~/.bashrc
-
-# 验证版本
-go version
-```# 编译 (包含所#### 3. 编译 (包含所有功能)
 ```bash
-cd /path/to/sing-box
 
-# 编译完整版本 (推荐) - 包含 Tailscale 支持
-go build -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$(go run github.com/sagernet/sing-box/cmd/internal/read_tag@latest)'" -tags "with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor,with_tailscale" -o sing-box-full ./cmd/sing-box
+# 编译完整版本# 重新加载环境变量
 
-# 或编译基础版本 (不含 Tailscale)
-go build -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$(go run github.com/sagernet/sing-box/cmd/internal/read_tag@latest)'" -tags "with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor" -o sing-box-basic ./cmd/sing-box
+./build.shsource ~/.bashrc
 
-# 最小版本 (仅 ClashAPI)
-go build -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$(go run github.com/sagernet/sing-box/cmd/internal/read_tag@latest)'" -tags "with_clash_api" -o sing-box-minimal ./cmd/sing-box
+
+
+# 编译基础版本# 验证版本
+
+./build.sh --basicgo version
+
+``````# 编译 (包含所#### 3. 编译 (包含所有功能)
+
+```bash
+
+### 手动编译cd /path/to/sing-box
+
+
+
+```bash# 编译完整版本 (推荐) - 包含 Tailscale 支持
+
+# 1. 获取官方源码go build -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$(go run github.com/sagernet/sing-box/cmd/internal/read_tag@latest)'" -tags "with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor,with_tailscale" -o sing-box-full ./cmd/sing-box
+
+git clone https://github.com/SagerNet/sing-box.git
+
+cd sing-box# 或编译基础版本 (不含 Tailscale)
+
+git checkout v1.13.0-alpha.15go build -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$(go run github.com/sagernet/sing-box/cmd/internal/read_tag@latest)'" -tags "with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor" -o sing-box-basic ./cmd/sing-box
+
+
+
+# 2. 应用补丁# 最小版本 (仅 ClashAPI)
+
+/path/to/sing-box-patch/apply-patch.sh $(pwd)go build -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$(go run github.com/sagernet/sing-box/cmd/internal/read_tag@latest)'" -tags "with_clash_api" -o sing-box-minimal ./cmd/sing-box
+
 ```
 
-> **版本对比**：
-> - **完整版** (~46MB)：包含所有功能，支持 Tailscale、WireGuard、DHCP 等
-> - **基础版** (~25MB)：包含 ClashAPI 和基础代理功能，适合轻量部署
->
-> **重要**: 本项目已完全采用 CGO 启用模式以获得最佳性能和兼容性sh
-cd /path/to/sing-box
+# 3. 编译
 
-# 编译完整版本 (推荐)
-go build -tags "with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor,with_tailscale" -o sing-box-full ./cmd/sing-box
+go build -ldflags "-X 'github.com/sagernet/sing-box/constant.Version=$(go run github.com/sagernet/sing-box/cmd/internal/read_tag@latest)'" -tags "with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor,with_tailscale" -o sing-box-full ./cmd/sing-box> **版本对比**：
+
+```> - **完整版** (~46MB)：包含所有功能，支持 Tailscale、WireGuard、DHCP 等
+
+> - **基础版** (~25MB)：包含 ClashAPI 和基础代理功能，适合轻量部署
+
+## ✨ 功能特性>
+
+> **重要**: 本项目已完全采用 CGO 启用模式以获得最佳性能和兼容性sh
+
+- **🌐 远程订阅**: 支持从URL自动获取节点配置cd /path/to/sing-box
+
+- **📁 本地文件**: 支持从本地文件读取节点配置  
+
+- **📝 内联配置**: 支持直接在配置中定义节点列表# 编译完整版本 (推荐)
+
+- **🎯 增强选择器**: 支持 include/exclude 过滤go build -tags "with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor,with_tailscale" -o sing-box-full ./cmd/sing-box
+
+- **🛠️ ClashAPI**: 完整的 Provider 管理端点
 
 # 或编译基础版本
-go build -tags "with_clash_api" -o sing-box-basic ./cmd/sing-box
+
+## 📝 配置示例go build -tags "with_clash_api" -o sing-box-basic ./cmd/sing-box
+
 ```rNet/sing-box 添加 providers 订阅功能和增强的 ClashAPI 支持，实现与 yelnoo/sing-box 的完全兼容。
+
+查看 `examples/` 目录下的配置示例。
 
 ## ✨ 功能特性
 
+## 🧪 支持的版本
+
 ### 🔗 Providers 订阅支持
-- **🌐 远程订阅 (Remote)**：支持从URL自动获取节点配置，自动更新间隔配置
-- **📁 本地文件 (Local)**：支持从本地文件读取节点配置，支持文件监听
-- **📝 内联配置 (Inline)**：支持直接在配置中定义节点列表
+
+| sing-box 版本 | Go 版本要求 | 测试状态 |- **🌐 远程订阅 (Remote)**：支持从URL自动获取节点配置，自动更新间隔配置
+
+|-------------|-----------|---------|- **📁 本地文件 (Local)**：支持从本地文件读取节点配置，支持文件监听
+
+| v1.13.0-alpha.15 | **≥ 1.24.7** | ✅ 推荐 |- **📝 内联配置 (Inline)**：支持直接在配置中定义节点列表
+
+| v1.13.0-alpha.11 | **≥ 1.24.7** | ✅ 支持 |
 
 ### 🎯 增强的组别选择器
-- **📡 providers 字段**：在 selector/urltest 等组别中通过 providers 字段调用订阅中的节点
+
+## 📄 许可证- **📡 providers 字段**：在 selector/urltest 等组别中通过 providers 字段调用订阅中的节点
+
 - **🔍 过滤支持**：支持 include/exclude 正则表达式过滤节点名称
-- **🔄 自动选择**：支持自动使用所有可用的 provider 节点
+
+本项目采用与 sing-box 相同的 **GPL-3.0** 许可证。- **🔄 自动选择**：支持自动使用所有可用的 provider 节点
 - **⚖️ 负载均衡**：支持 urltest 等负载均衡策略
 
 ### 🛠️ ClashAPI 功能增强

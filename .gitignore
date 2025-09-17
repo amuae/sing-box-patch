@@ -1,25 +1,46 @@
-# 编译产物
-build/sing-box*
-*.exe
-*.bin
+# 编译产物# 编译产物
 
-# 临时文件
-*.tmp
-*.temp
-.DS_Store
-.vscode/
+build/sing-box*build/sing-box*
+
+*.exe*.exe
+
+*.bin*.bin
+
+
+
+# 临时文件# 临时文件
+
+*.tmp*.tmp
+
+*.temp*.temp
+
+.DS_Store.DS_Store
+
+*.log.vscode/
+
 *.log
 
-# Go相关
-go.mod
-go.sum
+# 配置文件
+
+config.json# Go相关
+
+*config*.jsongo.mod
+
+!examples/*.jsongo.sum
+
 vendor/
 
-# 缓存文件
-cache.db
-*.cache
+# 系统文件
 
-# 配置文件（敏感信息）
+Thumbs.db# 缓存文件
+
+*.swpcache.db
+
+*~*.cache
+
+.idea/
+
+.vscode/# 配置文件（敏感信息）
 config.json
 *config*.json
 !examples/*.json
