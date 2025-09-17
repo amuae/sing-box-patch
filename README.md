@@ -1,8 +1,68 @@
-# Sing-Box Provider Patch# Sing-Box Provider Patch
+# sing-box 多版本补丁项目
 
+为 sing-box 添加 Provider 订阅功能，支持多版本。
 
+## 功能特性
 
-🚀 **为官方 SagerNet/sing-box 添加完整的 Providers 订阅功能！**🚀 **为官方 SagerNet/sing-box 添加完整的 Providers 订阅功能！**
+- Provider 订阅支持 (Remote/Local/Inline)
+- 组别选择器增强 (providers 字段)
+- ClashAPI 扩展 (/providers/proxies)
+- 节点过滤 (include/exclude)
+
+## 项目结构
+
+```
+├── source/1.13/       # 1.13 版本源码
+├── source/1.14/       # 1.14 版本源码 (预留)
+├── patches/1.13/      # 1.13 版本补丁 (预留)
+├── build-1.13.sh      # 1.13 专用构建脚本
+└── apply-patch.sh     # 多版本补丁应用
+```
+
+## 快速使用
+
+```bash
+# 自动编译 1.13 版本
+./build-1.13.sh
+
+# 手动应用补丁
+git clone https://github.com/SagerNet/sing-box.git
+cd sing-box && git checkout v1.13.0-alpha.15
+/path/to/sing-box-patch/apply-patch.sh . 1.13
+go build -tags "with_clash_api,with_quic" -o sing-box ./cmd/sing-box
+```
+
+## 版本支持
+
+| 版本 | 状态 | 构建脚本 |
+|------|------|----------|
+| 1.13.x | ✅ 完整支持 | build-1.13.sh |
+| 1.14.x | 🚧 预留 | - |
+
+## 环境要求
+
+- Go ≥ 1.24.7 (sing-box 1.13+ 必须)
+- CGO 启用 (推荐)
+
+## 新版本适配
+
+```bash
+# 创建新版本
+mkdir -p source/1.14 patches/1.14
+cp -r source/1.13/* source/1.14/
+cp build-1.13.sh build-1.14.sh
+# 编辑 build-1.14.sh 中的版本号
+```
+
+## API 使用
+
+```bash
+# 查看 Provider
+curl http://127.0.0.1:9090/providers/proxies
+
+# 手动更新
+curl -X PUT http://127.0.0.1:9090/providers/proxies/{name}
+```
 
 
 

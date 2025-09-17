@@ -1,0 +1,455 @@
+name: Build sing-box Patched Core
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'sing-box 源码主线'
+        required: true
+        default: '1.13'
+        type: choice
+        options:
+          - '1.12'
+          - '1.13'
+      
+      source_tag:
+        description: 'sing-box 源码标签'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - 'alpha'
+          - 'beta'
+          - 'rc'
+          - 'release'
+      
+      source_version:
+        description: 'sing-box 源码版本号 (latest=最新版本)'
+        required: true
+        default: 'latest'
+        type: string
+      
+      create_release:
+        description: '是否发布 Release'
+        required: true
+        default: false
+        type: boolean
+
+env:
+  GO_VERSION: '1.23'  # 根据实际调研，1.12/1.13版本使用Go 1.23
+  CGO_ENABLED: '1'
+  BUILD_TAGS: 'with_dhcp,with_wireguard,with_shadowsocksr,with_utls,with_reality,with_clash_api,with_quic,with_grpc,with_v2ray_api,with_gvisor,with_tailscale'
+
+jobs:
+  get-version:
+    name: 获取版本信息 (${{ inputs.source_branch }}-${{ inputs.source_tag }}-${{ inputs.source_version }})
+    runs-on: ubuntu-latest
+    outputs:
+      version_tag: ${{ steps.version.outputs.version_tag }}
+      version_number: ${{ steps.version.outputs.version_number }}
+      actual_tag: ${{ steps.version.outputs.actual_tag }}
+    steps:
+      - name: 设置版本信息
+        id: version
+        run: |
+          # 智能版本查询和降级逻辑
+          echo "🔍 开始智能版本查询..."
+          
+          BRANCH="${{ inputs.source_branch }}"
+          TAG="${{ inputs.source_tag }}"
+          VERSION="${{ inputs.source_version }}"
+          
+          # 定义降级顺序，针对不同版本系列
+          declare -A FALLBACK_ORDERS
+          if [ "$BRANCH" = "1.13" ]; then
+            # 1.13系列目前只有alpha版本
+            FALLBACK_ORDERS["1.13"]="alpha"
+          else
+            # 其他版本支持完整发布周期
+            FALLBACK_ORDERS["default"]="release rc beta alpha"
+          fi
+          
+          # 获取当前分支的降级顺序
+          if [[ -n "${FALLBACK_ORDERS[$BRANCH]}" ]]; then
+            FALLBACK_ORDER=(${FALLBACK_ORDERS[$BRANCH]})
+          else
+            FALLBACK_ORDER=(${FALLBACK_ORDERS["default"]})
+          fi
+          
+          # 查找版本的函数
+          find_version() {
+            local branch=$1
+            local tag=$2
+            local version=$3
+            
+            echo "🔍 查询 $branch $tag $version..."
+            
+            # 根据版本系列调整查询策略
+            local query_pattern
+            if [ "$version" = "latest" ]; then
+              # 查询最新版本
+              if [ "$tag" = "release" ]; then
+                # Release 版本: v1.12.8 (1.13系列暂无release版本)
+                if [ "$branch" = "1.13" ]; then
+                  echo "⚠️ 1.13系列暂无release版本，请使用alpha版本"
+                  echo ""
+                  return 1
+                fi
+                query_pattern="^v${branch}\\.[0-9]+$"
+                curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | \
+                  jq -r ".[] | select(.prerelease == false and (.tag_name | test(\"$query_pattern\"))) | .tag_name" | \
+                  sort -V | tail -1
+              else
+                # Pre-release 版本: v1.13.0-alpha.15, v1.12.0-rc.4
+                query_pattern="^v${branch}\\.[0-9]+-${tag}\\.[0-9]+$"
+                curl -s "https://api.github.com/repos/SagerNet/sing-box/releases" | \
+                  jq -r ".[] | select(.prerelease == true and (.tag_name | test(\"$query_pattern\"))) | .tag_name" | \
+                  sort -V | tail -1
+              fi
+            else
+              # 检查指定版本是否存在
+              local target_tag
+              if [ "$tag" = "release" ]; then
+                if [ "$branch" = "1.13" ]; then
+                  echo "⚠️ 1.13系列暂无release版本，请使用alpha版本"
+                  echo ""
+                  return 1
+                fi
+                target_tag="v${branch}.${version}"
+              else
+                target_tag="v${branch}.0-${tag}.${version}"
+              fi
+              
+              # 验证版本是否存在
+              if curl -s "https://api.github.com/repos/SagerNet/sing-box/releases/tags/${target_tag}" | jq -e '.tag_name' > /dev/null 2>&1; then
+                echo "$target_tag"
+              else
+                echo ""
+              fi
+            fi
+          }
+          
+          # 尝试查找版本，如果失败则按顺序降级
+          FOUND_VERSION=""
+          CURRENT_TAG="$TAG"
+          
+          # 首先尝试原始请求
+          FOUND_VERSION=$(find_version "$BRANCH" "$CURRENT_TAG" "$VERSION")
+          
+          if [ -z "$FOUND_VERSION" ]; then
+            echo "⚠️ 未找到 $BRANCH $CURRENT_TAG $VERSION，开始降级查询..."
+            
+            # 找到当前标签在降级顺序中的位置
+            START_INDEX=-1
+            for i in "${!FALLBACK_ORDER[@]}"; do
+              if [ "${FALLBACK_ORDER[$i]}" = "$CURRENT_TAG" ]; then
+                START_INDEX=$i
+                break
+              fi
+            done
+            
+            # 如果当前标签不在降级列表中，从 release 开始
+            if [ $START_INDEX -eq -1 ]; then
+              START_INDEX=0
+            fi
+            
+            # 按降级顺序查找最新版本
+            for ((i=START_INDEX; i<${#FALLBACK_ORDER[@]}; i++)); do
+              FALLBACK_TAG="${FALLBACK_ORDER[$i]}"
+              echo "🔄 尝试降级到 $FALLBACK_TAG..."
+              
+              FOUND_VERSION=$(find_version "$BRANCH" "$FALLBACK_TAG" "latest")
+              
+              if [ -n "$FOUND_VERSION" ]; then
+                echo "✅ 降级成功: $FOUND_VERSION"
+                CURRENT_TAG="$FALLBACK_TAG"
+                break
+              fi
+            done
+          fi
+          
+          if [ -z "$FOUND_VERSION" ]; then
+            echo "❌ 未找到任何可用版本"
+            exit 1
+          fi
+          
+          # 提取纯版本号 (去掉 v 前缀)
+          VERSION_NUMBER="${FOUND_VERSION#v}"
+          
+          echo "version_tag=$FOUND_VERSION" >> $GITHUB_OUTPUT
+          echo "version_number=$VERSION_NUMBER" >> $GITHUB_OUTPUT
+          echo "actual_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
+          
+          echo "🎯 最终版本: $FOUND_VERSION"
+          echo "📦 版本号: $VERSION_NUMBER"
+          echo "🏷️ 实际标签: $CURRENT_TAG"
+          
+          # 如果发生了降级，输出警告信息
+          if [ "$CURRENT_TAG" != "$TAG" ]; then
+            echo "⚠️ 版本已降级: $TAG -> $CURRENT_TAG"
+          fi
+
+  build:
+    name: 编译 ${{ needs.get-version.outputs.version_tag }} (${{ matrix.goos }}-${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    needs: get-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: android
+            goarch: arm64
+            suffix: ''
+          - goos: linux
+            goarch: amd64
+            suffix: ''
+          - goos: linux
+            goarch: arm64
+            suffix: ''
+          - goos: windows
+            goarch: amd64
+            suffix: '.exe'
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: 设置 Android NDK (仅 Android)
+        if: matrix.goos == 'android'
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26c
+          add-to-path: false
+        
+      - name: 检查 Go 版本
+        run: |
+          go version
+          echo "✅ Go ${{ env.GO_VERSION }} 已安装"
+      
+      - name: 下载 sing-box 源码
+        run: |
+          echo "🔄 下载 sing-box ${{ needs.get-version.outputs.version_tag }} 源码..."
+          git clone --depth 1 --branch ${{ needs.get-version.outputs.version_tag }} \
+            https://github.com/SagerNet/sing-box.git sing-box-source
+          echo "✅ 源码下载完成"
+      
+      - name: 应用补丁
+        run: |
+          echo "🔧 应用 ${{ inputs.source_branch }} 版本补丁..."
+          # 检查补丁目录是否存在
+          if [ ! -d "source/${{ inputs.source_branch }}" ]; then
+            echo "❌ 补丁目录 source/${{ inputs.source_branch }} 不存在"
+            exit 1
+          fi
+          
+          # 复制补丁源码
+          cp -r source/${{ inputs.source_branch }}/* sing-box-source/
+          echo "✅ 补丁应用完成"
+      
+      - name: 设置编译环境变量
+        run: |
+          echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
+          echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
+          
+          # Android 特殊设置
+          if [ "${{ matrix.goos }}" = "android" ]; then
+            echo "CC=${{ env.ANDROID_NDK_ROOT }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang" >> $GITHUB_ENV
+            echo "CXX=${{ env.ANDROID_NDK_ROOT }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++" >> $GITHUB_ENV
+          fi
+      
+      - name: 编译 sing-box
+        working-directory: sing-box-source
+        run: |
+          echo "🏗️ 开始编译 ${{ matrix.goos }}-${{ matrix.goarch }}..."
+          
+          # 获取版本信息
+          VERSION="${{ needs.get-version.outputs.version_number }}"
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # 设置 LDFLAGS
+          LDFLAGS="-X 'github.com/sagernet/sing-box/constant.Version=$VERSION' \
+                   -X 'github.com/sagernet/sing-box/constant.Commit=$COMMIT_HASH' \
+                   -X 'github.com/sagernet/sing-box/constant.BuildTime=$BUILD_TIME' \
+                   -s -w -buildid="
+          
+          # 使用预定义的完整编译标签
+          BUILD_TAGS="${{ env.BUILD_TAGS }}"
+          
+          echo "📋 编译标签: $BUILD_TAGS"
+          echo "🔧 LDFLAGS: $LDFLAGS"
+          
+          # 编译
+          go build -v -trimpath \
+            -ldflags "$LDFLAGS" \
+            -tags "$BUILD_TAGS" \
+            -o "sing-box-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}" \
+            ./cmd/sing-box
+          
+          echo "✅ 编译完成"
+          ls -la sing-box-*
+      
+      - name: 测试编译产物
+        working-directory: sing-box-source
+        run: |
+          # 仅在 linux-amd64 上测试 (native 平台)
+          if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "amd64" ]; then
+            echo "🧪 测试编译产物..."
+            ./sing-box-${{ matrix.goos }}-${{ matrix.goarch }} version
+            echo "✅ 编译产物测试通过"
+          else
+            echo "⏭️ 跳过非本地平台测试"
+          fi
+      
+      - name: 打包编译产物
+        working-directory: sing-box-source
+        run: |
+          echo "📦 打包编译产物..."
+          
+          # 创建目录结构
+          PACKAGE_NAME="sing-box-${{ matrix.goos }}-${{ matrix.goarch }}-${{ needs.get-version.outputs.version_number }}"
+          mkdir -p "$PACKAGE_NAME"
+          
+          # 复制二进制文件
+          cp "sing-box-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}" "$PACKAGE_NAME/"
+          
+          # 复制示例配置文件
+          if [ -d "../examples" ]; then
+            cp -r ../examples "$PACKAGE_NAME/"
+          fi
+          
+          # 创建 README
+          cat > "$PACKAGE_NAME/README.md" << EOF
+          # sing-box Patched Core
+          
+          **版本**: ${{ needs.get-version.outputs.version_number }}  
+          **平台**: ${{ matrix.goos }}-${{ matrix.goarch }}  
+          **编译时间**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")  
+          **补丁版本**: ${{ inputs.source_branch }}
+          
+          ## 使用方法
+          
+          \`\`\`bash
+          # 赋予执行权限
+          chmod +x sing-box-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+          
+          # 查看版本
+          ./sing-box-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} version
+          
+          # 运行 (需要配置文件)
+          ./sing-box-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} run -c config.json
+          \`\`\`
+          
+          ## 新增功能
+          
+          - ✅ Provider 订阅支持 (Remote/Local/Inline)
+          - ✅ 组别选择器增强 (providers 字段)  
+          - ✅ ClashAPI 扩展 (/providers/proxies)
+          - ✅ 节点过滤 (include/exclude)
+          EOF
+          
+          # 打包
+          tar -czf "$PACKAGE_NAME.tar.gz" "$PACKAGE_NAME"
+          echo "✅ 打包完成: $PACKAGE_NAME.tar.gz"
+          
+          # 输出文件信息
+          ls -la "$PACKAGE_NAME.tar.gz"
+      
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: sing-box-${{ matrix.goos }}-${{ matrix.goarch }}-${{ needs.get-version.outputs.version_number }}
+          path: sing-box-source/sing-box-${{ matrix.goos }}-${{ matrix.goarch }}-${{ needs.get-version.outputs.version_number }}.tar.gz
+          retention-days: 7
+
+  release:
+    name: 发布 Release
+    runs-on: ubuntu-latest
+    needs: [get-version, build]
+    if: inputs.create_release == true
+    steps:
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: 准备 Release 文件
+        run: |
+          echo "📦 准备 Release 文件..."
+          mkdir -p release-files
+          
+          # 移动所有文件到 release-files 目录
+          find artifacts -name "*.tar.gz" -exec cp {} release-files/ \;
+          
+          # 显示文件列表
+          echo "🎯 Release 文件列表:"
+          ls -la release-files/
+      
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sing-box-${{ needs.get-version.outputs.version_number }}
+          name: sing-box-${{ needs.get-version.outputs.version_number }}
+          body: |
+            # sing-box Patched Core ${{ needs.get-version.outputs.version_number }}
+            
+            基于 sing-box ${{ needs.get-version.outputs.version_tag }} 的补丁版本，新增 Provider 订阅功能。
+            
+            ${{ needs.get-version.outputs.actual_tag != github.event.inputs.source_tag && format('⚠️ **版本降级**: 请求的 {0} 版本不存在，已自动降级到 {1} 版本', github.event.inputs.source_tag, needs.get-version.outputs.actual_tag) || '' }}
+            
+            ## 🎯 新增功能
+            
+            - ✅ **Provider 订阅支持**: Remote、Local、Inline 三种模式
+            - ✅ **组别选择器增强**: 支持 `providers` 字段  
+            - ✅ **ClashAPI 扩展**: 新增 `/providers/proxies`、`/providers/rules` 端点
+            - ✅ **节点过滤功能**: 支持 `include`/`exclude` 正则过滤
+            - ✅ **手动更新支持**: API 手动触发订阅和规则更新
+            - ✅ **健康检查**: Provider 节点健康状态监控
+            
+            ## 📋 支持平台
+            
+            | 平台 | 架构 | 下载 |
+            |------|------|------|
+            | Android | ARM64 | `sing-box-android-arm64-${{ needs.get-version.outputs.version_number }}.tar.gz` |
+            | Linux | AMD64 | `sing-box-linux-amd64-${{ needs.get-version.outputs.version_number }}.tar.gz` |
+            | Linux | ARM64 | `sing-box-linux-arm64-${{ needs.get-version.outputs.version_number }}.tar.gz` |
+            | Windows | AMD64 | `sing-box-windows-amd64-${{ needs.get-version.outputs.version_number }}.tar.gz` |
+            
+            ## 🔧 技术规格
+            
+            - **基于版本**: sing-box ${{ needs.get-version.outputs.version_tag }}
+            - **补丁版本**: ${{ github.event.inputs.source_branch }}
+            - **编译工具**: Go ${{ env.GO_VERSION }}
+            - **编译标签**: `${{ env.BUILD_TAGS }}`
+            - **CGO**: 已启用
+            - **实际标签**: ${{ needs.get-version.outputs.actual_tag }}
+            
+            ## 🚀 快速开始
+            
+            1. 下载对应平台的压缩包
+            2. 解压并赋予执行权限
+            3. 参考 `examples/` 目录下的配置示例
+            4. 使用 `./sing-box run -c config.json` 启动
+            
+            ## 📖 配置示例
+            
+            请参考压缩包内的 `examples/` 目录，包含：
+            - `remote-provider.json` - 远程订阅配置
+            - `local-provider.json` - 本地节点配置  
+            - `inline-provider.json` - 内联节点配置
+            
+            ## ⚠️ 注意事项
+            
+            - 本版本为非官方补丁版本，使用前请仔细测试
+            - Provider 功能需要配合支持的客户端使用
+            - 建议在测试环境验证配置后再部署到生产环境
+            
+          files: release-files/*.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: false
