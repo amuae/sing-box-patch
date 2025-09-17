@@ -123,6 +123,9 @@ func (s *Selector) Start() error {
 func (s *Selector) Now() string {
 	selected := s.selected.Load()
 	if selected == nil {
+		if len(s.tags) == 0 {
+			return ""
+		}
 		return s.tags[0]
 	}
 	return selected.Tag()
@@ -286,6 +289,10 @@ func (s *Selector) outboundSelect() (adapter.Outbound, error) {
 			return nil, E.New("default outbound not found: ", s.defaultTag)
 		}
 		return detour, nil
+	}
+
+	if len(s.tags) == 0 {
+		return nil, E.New("no available outbounds in selector: ", s.tag)
 	}
 
 	return s.outbounds[s.tags[0]], nil
